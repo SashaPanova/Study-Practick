@@ -1,0 +1,632 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <chrono>
+#include <future>
+#include <thread>
+#include <cstdlib>    // Для функции rand() и srand()
+#include <ctime>      // Для инициализации генератора случайных чисел
+#include <sstream>    // Для работы со строковыми потоками
+
+using namespace std;
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: getInputWithTimeout
+// Назначение: получает строку из стандартного ввода с ограничением по времени.
+// Если игрок ввёл данные до истечения таймаута, возвращается введённая строка.
+// Иначе возвращается пустая строка, что означает, что время истекло, и будет произведён автодвижок.
+// --------------------------------------------------------------------
+string getInputWithTimeout(int timeLimitSeconds) {
+    // Запуск ввода в отдельном потоке с помощью std::async
+    future<string> futureInput = async(launch::async, [](){
+        string s;
+        getline(cin, s);
+        return s;
+    });
+    
+    // Ожидание ввода не более timeLimitSeconds секунд
+    if(futureInput.wait_for(chrono::seconds(timeLimitSeconds)) == future_status::ready) {
+        return futureInput.get();
+    } else {
+        // Если время вышло, возвращаем пустую строку
+        return "";
+    }
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: getRandomMoveClassic
+// Назначение: возвращает случайный законный ход для классических крестиков-ноликов.
+// Вход: board - текущая доска 3x3, где пустые клетки имеют символ ' '.
+// Выход: пара индексов (row, col)
+// --------------------------------------------------------------------
+pair<int, int> getRandomMoveClassic(const vector<vector<char>>& board) {
+    vector<pair<int,int>> available;
+    // Проходим по всем клеткам доски и собираем незанятые клетки
+    for (int i = 0; i < 3; i++){
+        for (int j = 0; j < 3; j++){
+            if(board[i][j] == ' ')
+                available.push_back({i,j});
+        }
+    }
+    // Выбираем случайный индекс из доступных ходов
+    if(!available.empty()){
+        int idx = rand() % available.size();
+        return available[idx];
+    }
+    // Если ходов нет, возвращаем (-1,-1)
+    return {-1, -1};
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: checkWinClassic
+// Назначение: проверяет доску 3x3 на наличие победной комбинации.
+// Если найден выигрыш, возвращается символ победителя ('X' или 'O'), иначе возвращается ' '.
+// --------------------------------------------------------------------
+char checkWinClassic(const vector<vector<char>>& board) {
+    // Проверяем все строки
+    for (int i = 0; i < 3; i++){
+        if(board[i][0] != ' ' &&
+           board[i][0] == board[i][1] &&
+           board[i][1] == board[i][2])
+            return board[i][0];
+    }
+    // Проверяем столбцы
+    for (int j = 0; j < 3; j++){
+        if(board[0][j] != ' ' &&
+           board[0][j] == board[1][j] &&
+           board[1][j] == board[2][j])
+            return board[0][j];
+    }
+    // Проверяем диагонали
+    if(board[0][0] != ' ' &&
+       board[0][0] == board[1][1] &&
+       board[1][1] == board[2][2])
+        return board[0][0];
+    if(board[0][2] != ' ' &&
+       board[0][2] == board[1][1] &&
+       board[1][1] == board[2][0])
+        return board[0][2];
+    
+    return ' '; // Победителя не найдено
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: isBoardFullClassic
+// Назначение: проверяет, заполнена ли доска 3x3.
+// Возвращает true, если нет пустых клеток.
+// --------------------------------------------------------------------
+bool isBoardFullClassic(const vector<vector<char>>& board) {
+    for (int i = 0; i < 3; i++){
+        for (int j = 0; j < 3; j++){
+            if(board[i][j] == ' ')
+                return false;
+        }
+    }
+    return true;
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: printBoardClassic
+// Назначение: выводит текущую доску 3x3 на экран.
+// --------------------------------------------------------------------
+void printBoardClassic(const vector<vector<char>>& board) {
+    cout << "\n";
+    for (int i = 0; i < 3; i++){
+        for (int j = 0; j < 3; j++){
+            cout << (board[i][j] == ' ' ? '.' : board[i][j]);
+            if(j < 2) cout << " | ";
+        }
+        cout << "\n";
+        if(i < 2) cout << "---------\n";
+    }
+    cout << "\n";
+}
+
+// --------------------------------------------------------------------
+// РЕАЛИЗАЦИЯ КЛАССИЧЕСКИХ КРЕСТИКОВ-НОЛИКОВ
+// ФУНКЦИЯ: playClassicGame
+// Назначение: основной процесс игры для классических крестиков-ноликов.
+// --------------------------------------------------------------------
+void playClassicGame(bool timedMode, int timeLimit, bool isPvC, char player1Symbol, char player2Symbol) {
+    // Инициализация доски 3x3 символом ' ' (пустая клетка)
+    vector<vector<char>> board(3, vector<char>(3, ' '));
+    
+    char currentPlayer = 'X';  // Крестики обычно ходят первыми
+    // Ассоциируем игрока с символом. Если человек против компьютера, предполагаем,
+    // что компьютер играет за то, чей символ не выбран игроком (player1Symbol - человек).
+    // Если играют оба человека, всё вводится вручную.
+    
+    // Игровой цикл: продолжается до победы или до заполнения доски.
+    while (true) {
+        printBoardClassic(board);
+        
+        // Выводим сообщение, чей ход
+        cout << "Ход " << currentPlayer << ".\n";
+        int row = -1, col = -1;
+        bool validMove = false;
+        
+        // Если игра против компьютера и текущий игрок является компьютером,
+        // или если играют два компьютера, то используем движок для выбора хода.
+        bool computerMove = false;
+        if(isPvC) {
+            // Предполагаем, что игрок играет за символ, заданный как player1Symbol.
+            // Если currentPlayer не совпадает с player1Symbol, то текущий игрок - компьютер.
+            computerMove = (currentPlayer != player1Symbol);
+        }
+        
+        // Если играют два компьютера, то каждый ход выполняется автоматически.
+        // Если компьютер, выбираем ход с использованием нашего движка (случайный выбор).
+        if(computerMove) {
+            cout << "Хм, тут надо немного подумать...\n";
+            // Маленькая задержка для имитации обдумывания
+            this_thread::sleep_for(chrono::milliseconds(500));
+            pair<int,int> move = getRandomMoveClassic(board);
+            row = move.first;
+            col = move.second;
+            validMove = true;
+        } else {
+            // Если ход выполняет человек
+            cout << "Введите ход в формате: строка столбец (от 0 до 8)";
+            if(timedMode)
+                cout << " (осталось " << timeLimit << " секунд)";
+            cout << ":\n";
+            
+            string input = timedMode ? getInputWithTimeout(timeLimit) : "";
+            
+            // Если в режиме времени время истекло или игрок ввёл пустую строку, выбираем автодвижок
+            if(timedMode && input.empty()){
+                cout << "А время то закончилось! Но я выберу за тебя, не переживай!\n";
+                pair<int,int> move = getRandomMoveClassic(board);
+                row = move.first;
+                col = move.second;
+                validMove = true;
+            } else {
+                // Если не в режиме времени, или игрок ввёл данные до истечения таймаута,
+                // читаем данные из cin, если не получили данные через getInputWithTimeout.
+                if(!timedMode) {
+                    getline(cin, input);
+                }
+                
+                // Парсинг ввода
+                istringstream iss(input);
+                if(!(iss >> row >> col)){
+                    cout << "Что-то тут не так. Попробуй ещё раз.\n";
+                    continue;
+                }
+                validMove = true;
+            }
+        }
+        
+        // Если получен корректный ход, проверяем, доступна ли выбранная клетка
+        if(validMove) {
+            if(row < 0 || row > 2 || col < 0 || col > 2 || board[row][col] != ' ') {
+                cout << "Неверный ход. Ячейка уже занята или находится вне зоны доступа. Попробуй ещё раз.\n";
+                continue;
+            }
+            // Делает ход на доске
+            board[row][col] = currentPlayer;
+        }
+        
+        // Проверка на выигрыш
+        char winner = checkWinClassic(board);
+        if(winner != ' ') {
+            printBoardClassic(board);
+            cout << "Игрок " << winner << " победил в этой битве!\n";
+            break;
+        }
+        // Если доска заполнена, игра завершается вничью.
+        if(isBoardFullClassic(board)) {
+            printBoardClassic(board);
+            cout << "Ничья! Все молодцы, хорошо постарались.\n";
+            break;
+        }
+        
+        // Смена игрока. Переходим к следующему ходу.
+        currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+    }
+}
+
+// --------------------------------------------------------------------
+// Дополнительные функции для игры Ultimate tic-tac-toe
+// Нам потребуется представленние глобальной доски 9x9 и статус малых досок.
+// --------------------------------------------------------------------
+
+// Функция для проверки выигрышной комбинации на доске 3x3 (используется как для малых досок).
+char checkWinLocal(const vector<char>& cells) {
+    // cells имеет размер 9: индексы 0,1,2 - строка 0; 3,4,5 - строка 1; 6,7,8 - строка 2.
+    // Проверка строк
+    for (int i = 0; i < 3; i++){
+        int idx = i * 3;
+        if(cells[idx] != ' ' &&
+           cells[idx] == cells[idx+1] &&
+           cells[idx+1] == cells[idx+2])
+            return cells[idx];
+    }
+    // Проверка столбцов
+    for (int j = 0; j < 3; j++){
+        if(cells[j] != ' ' &&
+           cells[j] == cells[j+3] &&
+           cells[j+3] == cells[j+6])
+            return cells[j];
+    }
+    // Проверка диагоналей
+    if(cells[0] != ' ' && cells[0] == cells[4] && cells[4] == cells[8])
+        return cells[0];
+    if(cells[2] != ' ' && cells[2] == cells[4] && cells[4] == cells[6])
+        return cells[2];
+    
+    return ' '; // Победителя не найдено
+}
+
+// Функция для проверки заполненности локальной доски (малая доска 3x3).
+bool isFullLocal(const vector<char>& cells) {
+    for (char c : cells)
+        if (c == ' ')
+            return false;
+    return true;
+}
+
+// Функция для преобразования глобальных координат (0..8, 0..8) в индекс малой доски и индекс клетки внутри неё.
+void globalCoordsToLocalIndices(int globalRow, int globalCol, int &localBoardIndex, int &localCellIndex) {
+    // Вычисляем номер малой доски (0..8): верхняя строка малых досок индекс 0,1,2; средняя 3,4,5; нижняя 6,7,8.
+    int boardRow = globalRow / 3;
+    int boardCol = globalCol / 3;
+    localBoardIndex = boardRow * 3 + boardCol;
+    
+    // В пределах выбранной доски вычисляем позицию клетки (0..8).
+    int cellRow = globalRow % 3;
+    int cellCol = globalCol % 3;
+    localCellIndex = cellRow * 3 + cellCol;
+}
+
+// Функция для преобразования номера малой доски и индекса клетки в глобальные координаты.
+void localIndicesToGlobalCoords(int localBoardIndex, int localCellIndex, int &globalRow, int &globalCol) {
+    // Маленькая доска определяется её строкой и столбцом:
+    int boardRow = localBoardIndex / 3;
+    int boardCol = localBoardIndex % 3;
+    // Клетка внутри доски:
+    int cellRow = localCellIndex / 3;
+    int cellCol = localCellIndex % 3;
+    globalRow = boardRow * 3 + cellRow;
+    globalCol = boardCol * 3 + cellCol;
+}
+
+// ФУНКЦИЯ: printUltimateBoard
+// Назначение: выводит текущую глобальную доску Ultimate на экран.
+// Глобальная доска представлена 9x9 клетками, но для удобства отображаются разделители между малыми досками.
+void printUltimateBoard(const vector<char>& board9x9, const vector<char>& localWinner) {
+    cout << "\n";
+    // Проходим по строкам глобальной доски 9x9
+    for (int i = 0; i < 9; i++){
+        // Если строка кратна 3, можно вывести горизонтальный разделитель (для красивого вида)
+        if(i > 0 && i % 3 == 0)
+            cout << "-------------------------\n";
+        for (int j = 0; j < 9; j++){
+            // Если столбец кратен 3, выводим вертикальный разделитель
+            if(j > 0 && j % 3 == 0)
+                cout << " |";
+            // Выводим клетку: если она пустая, выводим точку.
+            char c = board9x9[i*9 + j];
+            cout << " " << (c == ' ' ? '.' : c);
+        }
+        cout << "\n";
+    }
+    // Вывод глобального статуса малых досок
+    cout << "\nВот такая у нас обстановочка на данный момент:\n";
+    for (int i = 0; i < 9; i++){
+        cout << (localWinner[i] == ' ' ? '.' : localWinner[i]) << " ";
+        if(i % 3 == 2) cout << "\n";
+    }
+    cout << "\n";
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: getAvailableMovesUltimate
+// Назначение:
+//   На основании текущего состояния глобальной доски и статуса малых досок вычисляет список всех допустимых ходов.
+// Каждый ход представляется как пара: (globalIndex, где globalIndex = row*9+col).
+//   Если activeBoard != -1, то игрок обязан играть только в этой малой доске, если она ещё не выиграна или заполнена.
+//   Если activeBoard == -1, то игрок может играть в любой клетке малой доски, которая ещё не выиграна/заполнена.
+// --------------------------------------------------------------------
+vector<int> getAvailableMovesUltimate(const vector<char>& board9x9, const vector<char>& localWinner, int activeBoard) {
+    vector<int> moves;
+    // Если activeBoard != -1, то ограничиваемся выбранной малой доской, если она доступна.
+    if(activeBoard != -1 && localWinner[activeBoard] == ' ') {
+        // Проходим по всем 9 клеткам соответствующей малой доски.
+        int boardRow = activeBoard / 3;
+        int boardCol = activeBoard % 3;
+        for (int cell = 0; cell < 9; cell++){
+            int cellRow = cell / 3;
+            int cellCol = cell % 3;
+            int globalRow = boardRow * 3 + cellRow;
+            int globalCol = boardCol * 3 + cellCol;
+            int idx = globalRow*9 + globalCol;
+            if(board9x9[idx] == ' ')
+                moves.push_back(idx);
+        }
+        // Если в выбранной доске нет свободных клеток, то разрешаем ход в любом месте.
+        if(moves.empty()) {
+            activeBoard = -1;
+        }
+    }
+    
+    // Если activeBoard == -1 или выбранная доска недоступна, просматриваем всю доску.
+    if(activeBoard == -1) {
+        for (int i = 0; i < 9*9; i++){
+            // Определим, к какой малой доске принадлежит клетка.
+            int boardIndex = (i / 9) / 3 * 3 + ((i % 9) / 3);
+            // Если малая доска уже выиграна, в ней нельзя делать ход.
+            if(localWinner[boardIndex] != ' ')
+                continue;
+            if(board9x9[i] == ' ')
+                moves.push_back(i);
+        }
+    }
+    
+    return moves;
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: updateLocalWinner
+// Назначение: обновляет статус малой доски с индексом boardIndex, если в ней есть победитель.
+// Если кто-то выиграл, все клетки малой доски могут быть заменены на символ победителя (опционально).
+// --------------------------------------------------------------------
+void updateLocalWinner(vector<char>& board9x9, vector<char>& localWinner, int boardIndex) {
+    // Определим границы малой доски в глобальной доске 9x9.
+    int startRow = (boardIndex / 3) * 3;
+    int startCol = (boardIndex % 3) * 3;
+    vector<char> cells(9, ' ');
+    // Собираем клетки малой доски в вектор
+    int pos = 0;
+    for (int i = startRow; i < startRow + 3; i++){
+        for (int j = startCol; j < startCol + 3; j++){
+            cells[pos++] = board9x9[i*9 + j];
+        }
+    }
+    // Проверяем наличие победителя на малой доске
+    char winner = checkWinLocal(cells);
+    if(winner != ' '){
+        localWinner[boardIndex] = winner;
+        // Опционально: можно пометить всю малую доску символом победителя для наглядного вывода.
+        for (int i = startRow; i < startRow + 3; i++){
+            for (int j = startCol; j < startCol + 3; j++){
+                board9x9[i*9 + j] = winner;
+            }
+        }
+    } else if(isFullLocal(cells)) {
+        // Если доска заполнена, но победителя нет, помечаем ничью (например, символом 'D')
+        localWinner[boardIndex] = 'D';
+    }
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: checkGlobalWin
+// Назначение: проверяет, выиграна ли глобальная доска на основании статусов малых досок.
+// Малые доски рассматриваются как клетки 3x3. Если найдена победная линия (три одинаковых символа, не считая пустых или 'D'), возвращается символ победителя.
+// --------------------------------------------------------------------
+char checkGlobalWin(const vector<char>& localWinner) {
+    // Сначала создаём виртуальную глобальную доску 3x3 из малых досок.
+    vector<vector<char>> globalBoard(3, vector<char>(3, ' '));
+    for (int i = 0; i < 9; i++){
+        // Игнорируем доски, завершённые вничью ('D'), рассматривая их как непринятые.
+        char symbol = localWinner[i];
+        int row = i / 3;
+        int col = i % 3;
+        globalBoard[row][col] = (symbol == 'D' ? ' ' : symbol);
+    }
+    return checkWinClassic(globalBoard);
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: getRandomMoveUltimate
+// Назначение: возвращает случайный законный ход для Ultimate tic-tac-toe.
+// Выход: индекс клетки в глобальной доске (число от 0 до 80)
+// --------------------------------------------------------------------
+int getRandomMoveUltimate(const vector<char>& board9x9, const vector<char>& localWinner, int activeBoard) {
+    vector<int> moves = getAvailableMovesUltimate(board9x9, localWinner, activeBoard);
+    if(!moves.empty()){
+        int idx = rand() % moves.size();
+        return moves[idx];
+    }
+    return -1;
+}
+
+// --------------------------------------------------------------------
+// ФУНКЦИЯ: playUltimateGame
+// Назначение: основной игровой процесс для Ultimate tic-tac-toe.
+// --------------------------------------------------------------------
+void playUltimateGame(bool timedMode, int timeLimit, bool isPvC, char player1Symbol, char player2Symbol) {
+    // Глобальная доска 9x9 представлена одномерным вектором символов (размер = 81). Индексы 0..80.
+    // Изначально все клетки пустые (символ ' ').
+    vector<char> board9x9(81, ' ');
+    
+    // localWinner хранит статус каждой малой доски (9 досок). Если доска ещё игровая, значение ' '.
+    // Если доска выиграна, то символ победителя, или 'D' если ничья.
+    vector<char> localWinner(9, ' ');
+    
+    // activeBoard - номер малой доски, в которой должен быть сделан следующий ход.
+    // Если activeBoard == -1, то игрок может сделать ход в любой клетке.
+    int activeBoard = -1;
+    
+    char currentPlayer = 'X';  // крестики ходят первыми
+    
+    while (true) {
+        printUltimateBoard(board9x9, localWinner);
+        cout << "Ход " << currentPlayer;
+        if(activeBoard != -1)
+            cout << ". Обязательный ход на маленькой доске с номером " << activeBoard << " (индекс 0-8)";
+        cout << ".\n";
+        
+        int globalIndex = -1; // индекс клетки в диапазоне 0..8
+        bool validMove = false;
+        
+        // Определяем, чей ход: если режим PvC и текущий игрок не совпадает с символом игрока (player1Symbol), то это компьютер.
+        bool computerMove = false;
+        if(isPvC) {
+            computerMove = (currentPlayer != player1Symbol);
+        }
+        
+        if(computerMove) {
+            cout << "Хм, тут надо немного подумать...\n";
+            this_thread::sleep_for(chrono::milliseconds(500));
+            globalIndex = getRandomMoveUltimate(board9x9, localWinner, activeBoard);
+            validMove = true;
+        } else {
+            cout << "Введите ход в формате: globalRow globalCol (от 0 до 8)";
+            if(timedMode)
+                cout << " (осталось " << timeLimit << " секунд)";
+            cout << ":\n";
+            
+            string input = timedMode ? getInputWithTimeout(timeLimit) : "";
+            
+            if(timedMode && input.empty()){
+                cout << "Время вышло! Но я конечно же помогу тебе с выбором.\n";
+                globalIndex = getRandomMoveUltimate(board9x9, localWinner, activeBoard);
+                validMove = true;
+            } else {
+                if(!timedMode)
+                    getline(cin, input);
+                istringstream iss(input);
+                int globalRow, globalCol;
+                if(!(iss >> globalRow >> globalCol)){
+                    cout << "Что-то тут не так. Попробуй ещё раз.\n";
+                    continue;
+                }
+                // Проверяем диапазон
+                if(globalRow < 0 || globalRow > 8 || globalCol < 0 || globalCol > 8){
+                    cout << "Введённые координаты недоступны. Давай ещё раз.\n";
+                    continue;
+                }
+                globalIndex = globalRow * 9 + globalCol;
+                validMove = true;
+            }
+        }
+        
+        // Если ход получен, проверяем его корректность:
+        if(validMove) {
+            // Проверяем, свободна ли клетка.
+            if(board9x9[globalIndex] != ' ') {
+                cout << "К сожалению эт уячейку уже заняли. Попробуй ещё раз.\n";
+                continue;
+            }
+            // Проверяем, что если activeBoard задан, то ход должен быть сделан в нужной малой доске.
+            int boardIndex;
+            int localCellIndex;
+            int globalRow, globalCol;
+            globalRow = globalIndex / 9;
+            globalCol = globalIndex % 9;
+            globalCoordsToLocalIndices(globalRow, globalCol, boardIndex, localCellIndex);
+            if(activeBoard != -1 && boardIndex != activeBoard && localWinner[activeBoard]==' '){
+                cout << "Нужно сделать ход на маленькой доске " << activeBoard << ". Попробуй заново.\n";
+                continue;
+            }
+            // Делаем ход.
+            board9x9[globalIndex] = currentPlayer;
+            
+            // Обновляем статус малой доски, в которой произошёл ход.
+            updateLocalWinner(board9x9, localWinner, boardIndex);
+            
+            // Следующий activeBoard определяется позицией клетки (localCellIndex). Если доска с индексом localCellIndex уже завершена,
+            // то следующий игрок может играть в любой доступной клетке.
+            if(localWinner[localCellIndex] == ' ')
+                activeBoard = localCellIndex;
+            else
+                activeBoard = -1;
+        }
+        
+        // Проверяем глобальный выигрыш.
+        char globalWinner = checkGlobalWin(localWinner);
+        if(globalWinner != ' '){
+            printUltimateBoard(board9x9, localWinner);
+            cout << "Игрок " << globalWinner << " победил в этих голодных играх!\n";
+            break;
+        }
+        
+        // Если нет доступных ходов (всё заполнено), игра заканчивается ничьей.
+        vector<int> available = getAvailableMovesUltimate(board9x9, localWinner, activeBoard);
+        if(available.empty()){
+            printUltimateBoard(board9x9, localWinner);
+            cout << "Ничья! Так держать!\n";
+            break;
+        }
+        
+        // Меняем игрока.
+        currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+    }
+}
+
+// --------------------------------------------------------------------
+// Функция main - точка входа в программу. Здесь определяется выбор режима игры, тип игры, режим по времени и выбор фигур.
+// --------------------------------------------------------------------
+int main() {
+    // Инициализируем генератор случайных чисел
+    srand(static_cast<unsigned int>(time(0)));
+    
+    setlocale(LC_ALL, ""); // Для поддержки вывода кириллицы, если требуется.
+    
+    cout << "Добро пожаловать в Крестики-Нолики!\n";
+    cout << "Помогите с выбором режима игры для вас:\n";
+    cout << "1. Classic tic-tac-toe\n";
+    cout << "2. Ultimate tic-tac-toe\n";
+    
+    int modeChoice = 0;
+    cin >> modeChoice;
+    cin.ignore(); // удаляем символ перевода строки из входного потока
+    
+    // Выбор типа игры: PvP, PvC или CvC
+    cout << "Выберите тип игры:\n";
+    cout << "1. Отчаянная борьба двух игроков\n";
+    cout << "2. Хотите обыграть компьютер?\n";
+    cout << "3. Посмотрим как играют компьютеры (но только с режимом таймера)\n";
+    int gameType = 0;
+    cin >> gameType;
+    cin.ignore();
+    
+    // Выбор режима времени: игра на время или без лимита
+    cout << "Выбери временной режим:\n";
+    cout << "1. Можно никуда не торопиться и поиграть не на время\n";
+    cout << "2. Игра с ограниченным временем для хода\n";
+    int timeModeChoice = 0;
+    cin >> timeModeChoice;
+    cin.ignore();
+    
+    bool timedMode = (timeModeChoice == 2);
+    
+    int timeLimit = 0;
+    if(timedMode) {
+        cout << "Введите время выполнения (в секундах): ";
+        cin >> timeLimit;
+        cin.ignore();
+    }
+    
+    // Выбор символов для игроков.
+    // Очевидно, что крестики (X) ходят первыми.
+    char player1Symbol = 'X';
+    char player2Symbol = 'O';
+    if(gameType != 3) { // Если не режим "Компьютер против компьютера"
+        cout << "Выберите символ для первого игрока (конечно, лучше X): ";
+        cin >> player1Symbol;
+        cin.ignore();
+        // Если выбрали другой символ, автоматически устанавливаем для второго игрока альтернативу:
+        if(player1Symbol == 'X' || player1Symbol == 'x')
+            player1Symbol = 'X';
+        else
+            player1Symbol = 'O'; // Если игрок выбрал, например, O, можно изменить логику по желанию.
+        // Второй игрок будет играть другим символом.
+        player2Symbol = (player1Symbol == 'X' ? 'O' : 'X');
+    }
+    
+    // В зависимости от выбранного режима вызываем соответствующую функцию.
+    if(modeChoice == 1) {
+        cout << "\nПойдем по классике...\n";
+        playClassicGame(timedMode, timeLimit, (gameType==2), player1Symbol, player2Symbol);
+    } else if(modeChoice == 2) {
+        cout << "\nИграем в Ultimate tic-tac-toe...\n";
+        playUltimateGame(timedMode, timeLimit, (gameType==2), player1Symbol, player2Symbol);
+    } else {
+        cout << "Что-то не то... Завершение программы.\n";
+    }
+    
+    cout << "Спасибо, что поиграли, это было супер!\n";
+    return 0;
+}
