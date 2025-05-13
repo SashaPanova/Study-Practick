@@ -19,24 +19,43 @@ Ultimate (9×9):
 После начала игры вам лишь потребуется вводить цифрами ход, который вы желаете сделать (пример ввода, 1 2).
 # Скриншоты
 ![Снимок экрана 2025-05-11 083626](https://github.com/user-attachments/assets/037fc2a9-cde7-4f06-adbf-71ab865a7d4e)
+
 Выбор режима игры
+
 ![Снимок экрана 2025-05-11 084445](https://github.com/user-attachments/assets/07af4c5e-f0ff-45fe-81ef-d925ad15198e)
+
 Выбор типа игры
+
 ![Снимок экрана 2025-05-11 090031](https://github.com/user-attachments/assets/031526fc-2f40-4f4a-81dd-c38d871e5285)
+
 Выбор временного режима
+
 ![Снимок экрана 2025-05-11 085658](https://github.com/user-attachments/assets/a0a98dde-8359-4b22-a9a0-8d53fe7ceb6d)
+
 Ввод времени в случае выбора игры на время
+
 ![Снимок экрана 2025-05-11 090458](https://github.com/user-attachments/assets/f992040c-9c7f-402d-9261-988dbc93176e)
+
 Выбор фигуры
+
 ![Снимок экрана 2025-05-11 100114](https://github.com/user-attachments/assets/747fbbf7-b3cf-46bf-87fa-434107db8e92)
+
 Режим Classic 
+
 ![Снимок экрана 2025-05-11 100754](https://github.com/user-attachments/assets/4d27fa8f-39df-4d56-afb7-2274774f8f00)
+
 Режим Ultimate
+
 ![Снимок экрана 2025-05-11 100138](https://github.com/user-attachments/assets/856af90c-d619-4f90-bd09-70e3f0f6a43c)
+
 Победа игрока Х в режиме Classic 
+
 ![Снимок экрана 2025-05-11 102625](https://github.com/user-attachments/assets/af6eead4-9c4c-4d28-a216-6fe520c2f631)
+
 Достижение ничьи в режиме Classic
+
 ![Снимок экрана 2025-05-11 102711](https://github.com/user-attachments/assets/8bf4024f-54cc-4c22-99f3-265177bde05a)
+
 Победа игрока О в режиме Ultimate 
 
 
