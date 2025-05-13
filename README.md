@@ -58,7 +58,8 @@ Ultimate (9×9):
 
 Победа игрока О в режиме Ultimate 
 
-
+# Ссылка на видео по прохождению игры 
+https://youtu.be/mZJjWI0WfAY?si=_iM3gn7xCF5CQXkq
 
 
 
